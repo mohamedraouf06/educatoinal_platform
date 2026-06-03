@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
 import authRoutes from "./routes/authRoutes.js";
+import courseRoutes from "./routes/courseRoutes.js";
 // تشغيل الـ dotenv لقراءة ملف الـ .env
 dotenv.config();
 
@@ -20,6 +21,7 @@ mongoose
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
 app.use("/api/auth", authRoutes);
+app.use("/api/courses", courseRoutes);
 // رووت تجريبي
 app.get("/", (req, res) => {
   res.send("Welcome to the Teaching Platform Server (ES Modules)!");

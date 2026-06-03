@@ -1,3 +1,4 @@
+import jwt from "jsonwebtoken";
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -7,7 +8,10 @@ function authMiddleware(req, res, next) {
   }
   const token = authHeader.split(" ")[1];
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "HQIJUSWRUOE8TQWRR84810WQREWRW",
+    );
     req.user = decoded; // Attach user info (ID and Role) to the request object for later use
     next(); // Proceed to the next middleware or route handler
   } catch (error) {

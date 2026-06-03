@@ -1,6 +1,7 @@
 // controllers/authController.js
 import bcrypt from "bcryptjs";
 import { User } from "../models/models.js";
+import jwt from "jsonwebtoken";
 // ==========================================
 // REGISTER LOGIC
 // ==========================================
@@ -59,7 +60,7 @@ export const loginUser = async (req, res) => {
     // 3. Generate a secure JWT Token containing user payload (ID and Role)
     const token = jwt.sign(
       { userId: user._id, role: user.role },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || "HQIJUSWRUOE8TQWRR84810WQREWRW",
       { expiresIn: "7d" }, // Token expires in 7 days for security reasons
     );
 
