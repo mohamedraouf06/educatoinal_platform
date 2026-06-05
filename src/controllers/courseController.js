@@ -12,7 +12,7 @@ export const createCourse = async (req, res) => {
       title,
       description,
       price,
-      category,
+      thumbnail: `https://via.placeholder.com/300x200.png?text=${encodeURIComponent(title)}`, // Placeholder thumbnail with course title
     });
 
     // 2. Save to database

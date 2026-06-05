@@ -1,4 +1,5 @@
-import { Lesson } from "../models/models";
+import { Lesson } from "../models/models.js";
+
 // create a new lesson (admin only)
 export const createLesson = async (req, res) => {
   try {
@@ -28,13 +29,26 @@ export const createLesson = async (req, res) => {
 };
 
 // get all lessons for a specific course (students and admins)
-export const getLessonsBycourse = async (req, res) => {
+export const getLessonsByCourse = async (req, res) => {
   try {
-    const { courseId } = req.body;
-    const lessons = await Lesson.find({ courseId });
+    const { courseId } = req.params;
+    const user = await User.findById(req.user.id); // Get the logged-in user's data from the database
+    const userRole = req.user.role; // Assuming authMiddleware adds user info to req.user
+    if (userRole === "admin") {
+      const lessons = await Lesson.find({ courseId });
+      return res.status(200).json({ lessons });
+    }
+    if (!user.enrolledCourses.includes(courseId)) {
+      return res.status(403).json({
+        message: "You must purchase this course to access its lessons.",
+      });
+    } else if (user.enrolledCourses.includes(courseId)) {
+      const lessons = await Lesson.find({ courseId });
+      return res.status(200).json({ lessons });
+    }
   } catch (err) {
     res.status(500).json({
-      message: "Server error while creating lesson",
+      message: "Server error while fetching lessons",
       error: err.message,
     });
   }
