@@ -30,3 +30,13 @@ export const createCourse = async (req, res) => {
       .json({ message: "Server Error", error: error.message });
   }
 };
+export const getAllCourses = async (req, res) => {
+  try {
+    const courses = await Course.find();
+    return res.status(200).json({ courses });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Server Error", error: error.message });
+  }
+};

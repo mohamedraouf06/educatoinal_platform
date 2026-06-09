@@ -13,6 +13,7 @@ function authMiddleware(req, res, next) {
       process.env.JWT_SECRET || "HQIJUSWRUOE8TQWRR84810WQREWRW",
     );
     req.user = decoded; // Attach user info (ID and Role) to the request object for later use
+
     next(); // Proceed to the next middleware or route handler
   } catch (error) {
     return res.status(401).json({ message: "Unauthorized: Invalid token!" });

@@ -1,6 +1,9 @@
 // routes/courseRoutes.js
 import express from "express";
-import { createCourse } from "../controllers/courseController.js";
+import {
+  createCourse,
+  getAllCourses,
+} from "../controllers/courseController.js";
 
 // 🔥 التصحيح هنا: لازم نكتب اسم الملف بالكامل والامتداد .js في الآخر
 import authMiddleware from "../middleware/authMiddleware.js";
@@ -10,5 +13,6 @@ const router = express.Router();
 
 // Protected route
 router.post("/create", authMiddleware, adminMiddleware, createCourse);
+router.get("/all", getAllCourses);
 
 export default router;

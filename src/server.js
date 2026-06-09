@@ -1,18 +1,30 @@
 // server.js
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
-import dotenv from "dotenv";
 import authRoutes from "./routes/authRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
 import lessonRoutes from "./routes/lessonRoutes.js";
-// تشغيل الـ dotenv لقراءة ملف الـ .env
-dotenv.config();
 
 const app = express();
 
+// الإعدادات الصحيحة للحجم مرة واحدة فقط
+app.use(express.json({ limit: "100mb" }));
+app.use(express.urlencoded({ limit: "100mb", extended: true }));
+
+const corsOptions = {
+  origin: "http://localhost:5173",
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+};
+
+app.use(cors(corsOptions)); //
 // Middlewares أساسية للسيستم
-app.use(cors()); // السماح للفرونت إيند بطلب الداتا
+app.use(cors(corsOptions)); // السماح للفرونت إيند بطلب الداتا
 app.use(express.json()); // فهم داتا الـ JSON المبعوتة من الفورمز
 
 // 🔌 الاتصال بقاعدة البيانات MongoDB

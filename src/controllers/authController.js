@@ -32,7 +32,9 @@ export const registerUser = async (req, res) => {
     // 4. Persistence: Save to MongoDB
     await newUser.save();
 
-    res.status(201).json({ message: "User registered successfully!" });
+    res
+      .status(201)
+      .json({ message: "User registered successfully!", status: "success" });
   } catch (error) {
     res.status(500).json({ message: "Server Error", error: error.message });
   }
@@ -67,6 +69,7 @@ export const loginUser = async (req, res) => {
     // 4. Send back the token and public user profile details
     res.status(200).json({
       message: "Logged in successfully!",
+      status: "success",
       token,
       user: {
         id: user._id,
@@ -75,6 +78,20 @@ export const loginUser = async (req, res) => {
         role: user.role,
       },
     });
+  } catch (error) {
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
+
+export const getUserProfile = async (req, res) => {
+  try {
+    const currentuser = await User.findById(req.user.userId).select(
+      "-password",
+    );
+    if (!currentuser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.status(200).json({ status: "success", user: currentuser });
   } catch (error) {
     res.status(500).json({ message: "Server Error", error: error.message });
   }
