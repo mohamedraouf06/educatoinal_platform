@@ -1,6 +1,7 @@
 import express from "express";
 import {
   createCourse,
+  deleteCourse,
   getAllCourses,
 } from "../controllers/courseController.js";
 
@@ -37,5 +38,7 @@ router.post(
 );
 
 router.get("/all", getAllCourses);
+router.delete("/:id", authMiddleware, adminMiddleware, deleteCourse); // Delete a specific course
 
 export default router;
+Codeium;
