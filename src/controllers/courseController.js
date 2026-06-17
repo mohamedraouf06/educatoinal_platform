@@ -84,7 +84,24 @@ export const deleteCourse = async (req, res) => {
       deletedCourse,
       message: "course has been deleted",
     });
-    await Course.save();
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Server Error", error: error.message });
+  }
+};
+
+export const updateCourse = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updatedCourse = await Course.findByIdAndUpdate(id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+    res.status(200).json({
+      updatedCourse,
+      message: "course has been updated",
+    });
   } catch (error) {
     return res
       .status(500)

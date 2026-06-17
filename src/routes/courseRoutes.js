@@ -3,6 +3,7 @@ import {
   createCourse,
   deleteCourse,
   getAllCourses,
+  updateCourse,
 } from "../controllers/courseController.js";
 
 import authMiddleware from "../middleware/authMiddleware.js";
@@ -35,10 +36,11 @@ router.post(
   adminMiddleware,
   uploadImage.single("thumbnail"),
   createCourse,
-);
+); // Create a new course
 
-router.get("/all", getAllCourses);
+router.get("/all", getAllCourses); // Get all courses
 router.delete("/:id", authMiddleware, adminMiddleware, deleteCourse); // Delete a specific course
+router.put("/:id", authMiddleware, adminMiddleware, updateCourse); // Update a specific course
 
 export default router;
 Codeium;

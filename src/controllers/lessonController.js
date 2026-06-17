@@ -162,3 +162,38 @@ export const fakeEnrollCourse = async (req, res) => {
     return res.status(500).json({ message: "Server error during enrollment" });
   }
 };
+
+// delete lesson
+export const deleteLesson = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deletedLesson = await Lesson.findByIdAndDelete(id);
+    res.status(200).json({
+      deletedLesson,
+      message: "lesson has been deleted",
+    });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Server Error", error: error.message });
+  }
+};
+
+// update lesson
+export const updateLesson = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updatedLesson = await Lesson.findByIdAndUpdate(id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+    res.status(200).json({
+      updatedLesson,
+      message: "lesson has been updated",
+    });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Server Error", error: error.message });
+  }
+};
