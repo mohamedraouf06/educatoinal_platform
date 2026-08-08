@@ -1,4 +1,3 @@
-// server.js
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -12,21 +11,31 @@ import emailRoutes from "./routes/emailRoutes.js";
 
 const app = express();
 
-// الإعدادات الصحيحة للحجم مرة واحدة فقط
-app.use(express.json({ limit: "100mb" }));
-app.use(express.urlencoded({ limit: "100mb", extended: true }));
+// 1️⃣ إعدادات CORS للسماح بالـ Localhost والـ Production على Vercel
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://educatoinal-platform-frontend.vercel.app",
+];
 
 const corsOptions = {
-  origin: "http://localhost:5173",
+  origin: function (origin, callback) {
+    // السماح للطلبات من الدومينات المحددة أو الطلبات بدون origin (زي الـ Webhooks أو Postman)
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   methods: ["GET", "POST", "PUT", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
 };
 
-app.use(cors(corsOptions)); //
-// Middlewares أساسية للسيستم
-app.use(cors(corsOptions)); // السماح للفرونت إيند بطلب الداتا
-app.use(express.json()); // فهم داتا الـ JSON المبعوتة من الفورمز
+app.use(cors(corsOptions));
+
+// 2️⃣ الإعدادات الصحيحة للحجم (مرة واحدة فقط)
+app.use(express.json({ limit: "100mb" }));
+app.use(express.urlencoded({ limit: "100mb", extended: true }));
 
 // 🔌 الاتصال بقاعدة البيانات MongoDB
 mongoose
@@ -34,10 +43,12 @@ mongoose
   .then(() => console.log("✅ Connected to MongoDB successfully!"))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
+// 🚦 الـ Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/lessons", lessonRoutes);
 app.use("/api/emails", emailRoutes);
+
 // رووت تجريبي
 app.get("/", (req, res) => {
   res.send("Welcome to the Teaching Platform Server (ES Modules)!");
@@ -46,5 +57,5 @@ app.get("/", (req, res) => {
 // 🚀 تشغيل السيرفر
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server is running flawlessly on http://localhost:${PORT}`);
+  console.log(`🚀 Server is running flawlessly on port ${PORT}`);
 });
