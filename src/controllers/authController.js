@@ -7,7 +7,7 @@ import jwt from "jsonwebtoken";
 // ==========================================
 export const registerUser = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password } = req.body;
 
     // 1. Validation: Check if user exists
     const existingUser = await User.findOne({ email });
@@ -26,7 +26,7 @@ export const registerUser = async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      role: role || "student",
+      role: "student",
     });
 
     // 4. Persistence: Save to MongoDB

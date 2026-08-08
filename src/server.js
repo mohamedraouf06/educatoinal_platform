@@ -8,6 +8,7 @@ import cors from "cors";
 import authRoutes from "./routes/authRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
 import lessonRoutes from "./routes/lessonRoutes.js";
+import emailRoutes from "./routes/emailRoutes.js";
 
 const app = express();
 
@@ -36,13 +37,14 @@ mongoose
 app.use("/api/auth", authRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/lessons", lessonRoutes);
+app.use("/api/emails", emailRoutes);
 // رووت تجريبي
 app.get("/", (req, res) => {
   res.send("Welcome to the Teaching Platform Server (ES Modules)!");
 });
 
 // 🚀 تشغيل السيرفر
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server is running flawlessly on http://localhost:${PORT}`);
 });

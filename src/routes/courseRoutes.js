@@ -43,4 +43,3 @@ router.delete("/:id", authMiddleware, adminMiddleware, deleteCourse); // Delete 
 router.put("/:id", authMiddleware, adminMiddleware, updateCourse); // Update a specific course
 
 export default router;
-Codeium;

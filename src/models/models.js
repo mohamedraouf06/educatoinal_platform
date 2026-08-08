@@ -38,7 +38,48 @@ const lessonSchema = new mongoose.Schema({
   videoUrl: { type: String, required: true }, // Secret video URL coming from Cloudinary cloud storage
 });
 
+// ==========================================
+// 4. EMAIL SCHEMA (For Sending Emails)
+// ==========================================
+const emailSchema = new mongoose.Schema(
+  {
+    from: {
+      type: String,
+      required: true,
+    },
+    to: {
+      type: String,
+      required: true,
+    },
+    subject: {
+      type: String,
+      default: "",
+    },
+    message: {
+      type: String,
+      default: "",
+    },
+    direction: {
+      type: String,
+      enum: ["inbound", "outbound"], // inbound = وارد, outbound = صادر
+      required: true,
+    },
+    isRead: {
+      type: Boolean,
+      default: false,
+    },
+    receivedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  {
+    timestamps: true,
+  },
+);
+
 // Convert Schemas into usable Mongoose Models
 export const User = mongoose.model("User", userSchema);
 export const Course = mongoose.model("Course", courseSchema);
 export const Lesson = mongoose.model("Lesson", lessonSchema);
+export const Email = mongoose.model("Email", emailSchema);

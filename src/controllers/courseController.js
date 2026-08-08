@@ -79,6 +79,7 @@ export const getAllCourses = async (req, res) => {
 export const deleteCourse = async (req, res) => {
   try {
     const { id } = req.params;
+    console.log("Iiiiiiiiiiiiiiiiid", id);
     const deletedCourse = await Course.findByIdAndDelete(id);
     res.status(200).json({
       deletedCourse,
