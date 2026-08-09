@@ -47,3 +47,27 @@ export const updateUserRole = async (req, res) => {
       .json({ success: false, message: "حدث خطأ أثناء تحديث الدور" });
   }
 };
+
+// حذف مستخدم
+export const deleteUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const deletedUser = await User.findByIdAndDelete(userId);
+
+    if (!deletedUser) {
+      return res
+        .status(404)
+        .json({ success: false, message: "المستخدم غير موجود" });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "تم حذف المستخدم بنجاح",
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ success: false, message: "حدث خطأ أثناء حذف المستخدم" });
+  }
+};
