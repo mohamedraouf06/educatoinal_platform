@@ -9,6 +9,7 @@ import courseRoutes from "./routes/courseRoutes.js";
 import lessonRoutes from "./routes/lessonRoutes.js";
 import emailRoutes from "./routes/emailRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
+import studentRoutes from "./routes/studentRoutes.js";
 const app = express();
 
 // 1️⃣ إعدادات CORS للسماح بالـ Localhost والـ Production على Vercel
@@ -49,6 +50,7 @@ app.use("/api/courses", courseRoutes);
 app.use("/api/lessons", lessonRoutes);
 app.use("/api/emails", emailRoutes);
 app.use("/api/admin", userRoutes);
+app.use("/api/student", studentRoutes);
 
 // رووت تجريبي
 app.get("/", (req, res) => {
