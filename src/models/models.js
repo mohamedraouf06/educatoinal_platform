@@ -17,11 +17,24 @@ const userSchema = new mongoose.Schema({
 // ==========================================
 // 2. COURSE SCHEMA (The Big Umbrella)
 // ==========================================
-const courseSchema = new mongoose.Schema({
-  title: { type: String, required: true }, // e.g., "Node.js BootCamp"
-  description: { type: String },
-  price: { type: Number, required: true },
-  thumbnail: { type: String }, // URL of the course cover image
+const courseSchema = new mongoose.Schema(
+  {
+    title: { type: String, required: true }, // e.g., "Node.js BootCamp"
+    description: { type: String },
+    price: { type: Number, required: true },
+    thumbnail: { type: String }, // URL of the course cover image
+  },
+  {
+    toJSON: { virtuals: true }, // لتمكين إظهار الـ virtuals لما نحول لـ JSON
+    toObject: { virtuals: true },
+  },
+);
+
+// Virtual populate: يربط الكورس بالدروس الخاصة بيه عبر courseId
+courseSchema.virtual("lessons", {
+  ref: "Lesson", // اسم الموديل بتاع الدروس
+  localField: "_id", // حقل الـ ID في الكورس
+  foreignField: "courseId", // حقل الـ courseId في موديل الدرس
 });
 
 // ==========================================

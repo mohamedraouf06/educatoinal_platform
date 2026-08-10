@@ -2,10 +2,16 @@ import { User, Course } from "../models/models.js";
 
 export const getMyCourses = async (req, res) => {
   try {
-    // Populate enrolled courses using the user ID attached by auth middleware
-    const user = await User.findById(req.user.id).populate({
+    console.log("req from getmycourses", req.user);
+    const { userId } = req.user;
+    // // Populate enrolled courses using the user ID attached by auth middleware
+    const user = await User.findById(userId).populate({
       path: "enrolledCourses",
       select: "title description thumbnail instructor progress",
+      populate: {
+        path: "lessons",
+        select: "title duration videoUrl freePreview order",
+      },
     });
 
     if (!user) {
@@ -16,7 +22,7 @@ export const getMyCourses = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      count: user.enrolledCourses.length,
+      count: user.enrolledCourses ? user.enrolledCourses.length : 0,
       data: user.enrolledCourses,
     });
   } catch (error) {
@@ -29,10 +35,10 @@ export const getMyCourses = async (req, res) => {
 };
 
 export const getCourseDetailsForStudent = async (req, res) => {
+  console.log("from courses data ", req.user);
+  const { userId } = req.user;
   try {
     const { courseId } = req.params;
-    const userId = req.user.id;
-
     const user = await User.findById(userId);
 
     // Verify if the student is actually enrolled in this course or has admin role

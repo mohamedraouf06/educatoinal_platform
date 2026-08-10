@@ -1,7 +1,8 @@
-// controllers/authController.js
-import bcrypt from "bcryptjs";
-import { User } from "../models/models.js";
+import { randomBytes, createHash } from "node:crypto";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
+import { User } from "../models/models.js";
+
 // ==========================================
 // REGISTER LOGIC
 // ==========================================
@@ -83,6 +84,9 @@ export const loginUser = async (req, res) => {
   }
 };
 
+// ==========================================
+// GET USER PROFILE
+// ==========================================
 export const getUserProfile = async (req, res) => {
   try {
     const currentuser = await User.findById(req.user.userId).select(
@@ -94,5 +98,88 @@ export const getUserProfile = async (req, res) => {
     res.status(200).json({ status: "success", user: currentuser });
   } catch (error) {
     res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
+
+// ==========================================
+// FORGOT PASSWORD
+// ==========================================
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      // إرجاع استجابة نجاح لمنع الـ Email Enumeration للحفاظ على الأمان
+      return res.json({
+        success: true,
+        message: "لو الإيميل مسجل عندنا، هتوصلك رسالة بالتعليمات.",
+      });
+    }
+
+    // توليد التوكن وتحديد وقت صلاحية (15 دقيقة)
+    const resetToken = randomBytes(32).toString("hex");
+    const hashedToken = createHash("sha256").update(resetToken).digest("hex");
+
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 دقيقة
+    await user.save();
+
+    // رابط إعادة التعيين للعميل
+    const resetUrl = `http://localhost:5173/reset-password/${resetToken}`;
+
+    // 📝 طباعة الرابط في الـ Terminal للتجربة (بدل إرسال إيميل)
+    console.log("----------------------------------------");
+    console.log("🔗 RESET PASSWORD LINK:");
+    console.log(resetUrl);
+    console.log("----------------------------------------");
+
+    res.json({
+      success: true,
+      message:
+        "تم إرسال رابط إعادة التعيين بنجاح (افحص الـ Terminal لرؤية الرابط).",
+    });
+  } catch (err) {
+    console.error("Forgot Password Error:", err);
+    res.status(500).json({ success: false, message: "حدث خطأ في السيرفر" });
+  }
+};
+
+// ==========================================
+// RESET PASSWORD
+// ==========================================
+export const resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { newPassword } = req.body;
+
+    // تشفير التوكن القادم للبحث عنه في الداتابيز
+    const hashedToken = createHash("sha256").update(token).digest("hex");
+
+    // البحث عن المستخدم والتأكد من أن التوكن لم تنتهِ صلاحيته
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res
+        .status(400)
+        .json({ success: false, message: "الرابط غير صالح أو انتهت صلاحيته." });
+    }
+
+    // تشفير كلمة السر الجديدة وتصفير التوكن
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "تم تغيير كلمة السر بنجاح! يمكنك التسجيل الآن.",
+    });
+  } catch (err) {
+    console.error("Reset Password Error:", err);
+    res.status(500).json({ success: false, message: "حدث خطأ في السيرفر" });
   }
 };
