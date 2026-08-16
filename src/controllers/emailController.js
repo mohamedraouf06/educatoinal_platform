@@ -85,9 +85,11 @@ export const emailWebhook = async (req, res) => {
 export const getInbox = async (req, res) => {
   try {
     // بيجيب الرسائل الواردة فقط أو الرسائل اللي مش outbound
-    const emails = await Email.find({ direction: { $ne: "outbound" } }).sort({
-      receivedAt: -1,
-    });
+    const emails = await Email.find({ direction: { $ne: "outbound" } })
+      .sort({
+        receivedAt: -1,
+      })
+      .lean();
 
     res.status(200).json({
       status: "success",
@@ -104,9 +106,11 @@ export const getInbox = async (req, res) => {
 // 4️⃣ جلب البريد الصادر (Sent)
 export const getSentEmails = async (req, res) => {
   try {
-    const emails = await Email.find({ direction: "outbound" }).sort({
-      receivedAt: -1,
-    });
+    const emails = await Email.find({ direction: "outbound" })
+      .sort({
+        receivedAt: -1,
+      })
+      .lean();
 
     res.status(200).json({
       status: "success",

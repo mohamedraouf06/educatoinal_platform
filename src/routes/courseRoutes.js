@@ -3,6 +3,7 @@ import {
   createCourse,
   deleteCourse,
   getAllCourses,
+  getCourseById,
   updateCourse,
 } from "../controllers/courseController.js";
 
@@ -39,6 +40,8 @@ router.post(
 ); // Create a new course
 
 router.get("/all", getAllCourses); // Get all courses
+// ⚠️ لازم يفضل بعد "/all" — لأن الاتنين GET، ولو اتحطت قبلها هتاخد "/all" كـ :id غلط
+router.get("/:id", getCourseById); // Get one course's full details (public)
 router.delete("/:id", authMiddleware, adminMiddleware, deleteCourse); // Delete a specific course
 router.put("/:id", authMiddleware, adminMiddleware, updateCourse); // Update a specific course
 

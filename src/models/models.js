@@ -12,6 +12,13 @@ const userSchema = new mongoose.Schema({
 
   // Magic Array: Stores the IDs of the courses this specific student has paid for
   enrolledCourses: [{ type: mongoose.Schema.Types.ObjectId, ref: "Course" }],
+
+  // ⚠️ الحقلين دول كانوا بيتستخدموا في authController.js (forgot/reset password)
+  // من غير ما يكونوا معرّفين في الـ schema — يعني Mongoose كان بيتجاهلهم بصمت
+  // وقت الـ save() (السلوك الافتراضي strict: true)، فعملية استرجاع كلمة السر
+  // كانت فاشلة دايمًا من الأساس، حتى لو الإيميل وصل بنجاح.
+  resetPasswordToken: { type: String },
+  resetPasswordExpires: { type: Date },
 });
 
 // ==========================================
@@ -23,6 +30,14 @@ const courseSchema = new mongoose.Schema(
     description: { type: String },
     price: { type: Number, required: true },
     thumbnail: { type: String }, // URL of the course cover image
+
+    // بيانات لصفحة تفاصيل الكورس (تبديد شك الطالب قبل الشراء)
+    instructorName: { type: String },
+    instructorBio: { type: String },
+    whatYouWillLearn: [{ type: String }],
+
+    // كورسات تانية الأدمن بيرشحها كـ "ممكن يعجبك كمان" — يدوي مش محرك توصية
+    relatedCourses: [{ type: mongoose.Schema.Types.ObjectId, ref: "Course" }],
   },
   {
     toJSON: { virtuals: true }, // لتمكين إظهار الـ virtuals لما نحول لـ JSON
@@ -48,8 +63,14 @@ const lessonSchema = new mongoose.Schema({
     required: true,
   },
   title: { type: String, required: true }, // e.g., "Lesson 1: Introduction to Express"
-  videoUrl: { type: String, required: true }, // Secret video URL coming from Cloudinary cloud storage
+  videoUrl: { type: String, required: true }, // ⚠️ بيخزن Bunny Stream videoId (guid) مش رابط كامل — الرابط الموقّع بيتبني ديناميك في lessonController.js
+  duration: { type: Number, default: 0 }, // بالدقايق، للعرض بس
+  isFreePreview: { type: Boolean, default: false }, // لو true، أي زائر (حتى مش مشترك) يقدر يشغّله
+  order: { type: Number, default: 0 }, // ترتيب الدرس جوه الكورس
 });
+
+// Index بيسرّع أي استعلام بيفلتر الدروس حسب الكورس (getLessonsByCourse, populate("lessons"))
+lessonSchema.index({ courseId: 1 });
 
 // ==========================================
 // 4. EMAIL SCHEMA (For Sending Emails)
@@ -90,6 +111,9 @@ const emailSchema = new mongoose.Schema(
     timestamps: true,
   },
 );
+
+// بيسرّع فلترة الـ Inbox/Sent اللي بتعمل بحث بالـ direction في كل مرة
+emailSchema.index({ direction: 1 });
 
 // Convert Schemas into usable Mongoose Models
 export const User = mongoose.model("User", userSchema);

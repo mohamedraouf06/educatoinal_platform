@@ -3,9 +3,29 @@ import { User } from "../models/models.js";
 // 1. جلب جميع المستخدمين
 export const getAllUsers = async (req, res) => {
   try {
-    // نجيب المستخدمين من غير ما نرجع الـ password للأمان
-    const users = await User.find().select("-password").sort({ createdAt: -1 });
-    res.status(200).json({ success: true, users });
+    // Pagination: لو مفيش page/limit في الطلب، بنرجع أول 50 مستخدم بس
+    // (مش كل المستخدمين دفعة واحدة) عشان الاستجابة تفضل خفيفة مهما كبر عدد المستخدمين
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+    const skip = (page - 1) * limit;
+
+    // Projection: بنجيب بس الحقول اللي شاشة إدارة المستخدمين فعلاً بتعرضها
+    // (name, email, role) — من غير password ولا enrolledCourses اللي مش مستخدمة هناك
+    const [users, total] = await Promise.all([
+      User.find()
+        .select("name email role createdAt")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      User.countDocuments(),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      users,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    });
   } catch (error) {
     res
       .status(500)

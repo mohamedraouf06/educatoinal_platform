@@ -1,7 +1,26 @@
+// ⚠️ لازم يتحمّل هنا بالذات (أول سطر) عشان ترتيب تحميل الـ ES Modules:
+// كل الـ imports في المشروع بتتقيّم قبل ما جسم server.js (ومنه dotenv.config()) يشتغل،
+// فمينفعش نعتمد إن server.js هو اللي هيحمّل الـ env قبل ما الملف ده يتقرأ
+import "dotenv/config";
 import { randomBytes, createHash } from "node:crypto";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
+import { Resend } from "resend";
 import { User } from "../models/models.js";
+
+// ❗️ لازم الـ JWT_SECRET يكون متعرف في الـ .env، وإلا مينفعش نوقع أو نتحقق من أي توكن بأمان
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error(
+    "❌ JWT_SECRET is not defined in the environment variables (.env). Server cannot start without it.",
+  );
+}
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+// رابط الفرونت إند بتاع الـ Production (يتقرأ من الـ env، وليه fallback لو الـ env مش متظبطة)
+const CLIENT_URL =
+  process.env.CLIENT_URL || "https://educatoinal-platform-frontend.vercel.app";
 
 // ==========================================
 // REGISTER LOGIC
@@ -10,8 +29,8 @@ export const registerUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // 1. Validation: Check if user exists
-    const existingUser = await User.findOne({ email });
+    // 1. Validation: Check if user exists — بنجيب بس الـ _id، إحنا محتاجين نتأكد من الوجود بس
+    const existingUser = await User.findOne({ email }).select("_id").lean();
     if (existingUser) {
       return res
         .status(400)
@@ -63,7 +82,7 @@ export const loginUser = async (req, res) => {
     // 3. Generate a secure JWT Token containing user payload (ID and Role)
     const token = jwt.sign(
       { userId: user._id, role: user.role },
-      process.env.JWT_SECRET || "HQIJUSWRUOE8TQWRR84810WQREWRW",
+      JWT_SECRET,
       { expiresIn: "7d" }, // Token expires in 7 days for security reasons
     );
 
@@ -89,9 +108,9 @@ export const loginUser = async (req, res) => {
 // ==========================================
 export const getUserProfile = async (req, res) => {
   try {
-    const currentuser = await User.findById(req.user.userId).select(
-      "-password",
-    );
+    const currentuser = await User.findById(req.user.userId)
+      .select("-password")
+      .lean();
     if (!currentuser) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -125,19 +144,44 @@ export const forgotPassword = async (req, res) => {
     user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 دقيقة
     await user.save();
 
-    // رابط إعادة التعيين للعميل
-    const resetUrl = `http://localhost:5173/reset-password/${resetToken}`;
+    // رابط إعادة التعيين الحقيقي على دومين الفرونت إند بتاع الـ Production
+    const resetUrl = `${CLIENT_URL}/reset-password/${resetToken}`;
 
-    // 📝 طباعة الرابط في الـ Terminal للتجربة (بدل إرسال إيميل)
-    console.log("----------------------------------------");
-    console.log("🔗 RESET PASSWORD LINK:");
-    console.log(resetUrl);
-    console.log("----------------------------------------");
+    // 📧 إرسال إيميل حقيقي عن طريق Resend
+    // ⚠️ ملحوظة: Resend SDK مبيعملش throw لو فيه خطأ من الـ API (زي قيود الـ sandbox)،
+    // بيرجّع { data, error } عادي، فلازم نتأكد من error بنفسنا وإلا الخطأ هيختفي بصمت
+    try {
+      const { error: sendError } = await resend.emails.send({
+        from: "German Academy <onboarding@resend.dev>",
+        to: [user.email],
+        subject: "Reset your password",
+        html: `
+          <div style="font-family: sans-serif; line-height: 1.6;">
+            <h2>Password Reset Request</h2>
+            <p>Hi ${user.name || "there"},</p>
+            <p>We received a request to reset your password. This link expires in 15 minutes.</p>
+            <p>
+              <a href="${resetUrl}" style="background:#7c3aed;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;">
+                Reset Password
+              </a>
+            </p>
+            <p>If you didn't request this, you can safely ignore this email.</p>
+          </div>
+        `,
+      });
+
+      if (sendError) {
+        console.error("❌ Resend API returned an error:", sendError);
+      }
+    } catch (emailError) {
+      console.error("❌ Failed to send reset email via Resend:", emailError);
+      // مبنرجعش تفاصيل الخطأ للعميل عشان منكسرش سياسة عدم الكشف عن وجود الإيميل من عدمه
+    }
 
     res.json({
       success: true,
       message:
-        "تم إرسال رابط إعادة التعيين بنجاح (افحص الـ Terminal لرؤية الرابط).",
+        "لو الإيميل مسجل عندنا، هتوصلك رسالة بالتعليمات لإعادة تعيين كلمة السر.",
     });
   } catch (err) {
     console.error("Forgot Password Error:", err);

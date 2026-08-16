@@ -7,7 +7,8 @@ export const getCourseProgress = async (req, res) => {
 
     let progress = await Progress.findOne({ userId, courseId })
       .populate("completedLessons", "title")
-      .populate("lastAccessedLesson", "title videoUrl");
+      .populate("lastAccessedLesson", "title videoUrl")
+      .lean();
 
     // لو الطالب أول مرة يفتح الكورس، بننشئ له سجل جديد أوتوماتيك
     if (!progress) {
@@ -101,7 +102,7 @@ export const updateLastAccessed = async (req, res) => {
       { userId, courseId },
       { lastAccessedLesson: lessonId },
       { new: true, upsert: true },
-    );
+    ).lean();
 
     res.status(200).json({
       success: true,

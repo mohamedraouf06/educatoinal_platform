@@ -3,8 +3,9 @@ import authMiddleware from "../middleware/authMiddleware.js";
 import adminMiddleware from "../middleware/adminMiddleware.js";
 import {
   createLesson,
-  fakeEnrollCourse,
   getLessonsByCourse,
+  updateLesson,
+  deleteLesson,
 } from "../controllers/lessonController.js";
 import upload from "../middleware/uploadMiddleware.js";
 
@@ -18,9 +19,13 @@ router.post(
   upload.single("video"),
   createLesson,
 );
-// 🔒 Get lessons of a specific course (Protected: any logged-in user can view)
-router.get("/course/:courseId", authMiddleware, getLessonsByCourse);
+// 🌐 عام: أي زائر (حتى مش مسجل دخول) يقدر يشوف الفهرس ويشغّل دروس المعاينة المجانية.
+// التحقق من التوثيق (لو موجود) بيحصل جوه الكنترولر نفسه عشان نفرّق بين
+// زائر / طالب مسجل غير مشترك / طالب مشترك / أدمن، من غير ما نمنع الزائر تمامًا
+router.get("/course/:courseId", getLessonsByCourse);
 
-// purchse
-router.post("/enroll", authMiddleware, fakeEnrollCourse);
+// 🔒 تعديل/حذف درس (أدمن بس) — الكنترولرز دي كانت موجودة من غير أي route ليها خالص
+router.put("/:id", authMiddleware, adminMiddleware, updateLesson);
+router.delete("/:id", authMiddleware, adminMiddleware, deleteLesson);
+
 export default router;
