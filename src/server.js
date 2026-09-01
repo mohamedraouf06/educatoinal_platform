@@ -42,15 +42,15 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ limit: "1mb", extended: true }));
 
-// 3️⃣ Rate Limiting العام لكل الـ API لمنع الـ Spam
-const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 دقيقة
-  limit: 300, // 300 طلب لكل IP كل 15 دقيقة
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { message: "Too many requests, please try again later." },
-});
-app.use("/api", globalLimiter);
+// // 3️⃣ Rate Limiting العام لكل الـ API لمنع الـ Spam
+// const globalLimiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 دقيقة
+//   limit: 300, // each
+//   standardHeaders: true,
+//   legacyHeaders: false,
+//   message: { message: "Too many requests, please try again later." },
+// });
+// app.use("/api", globalLimiter);
 
 // 4️⃣ Rate Limiting أشد صرامة على مسارات المصادقة لمنع الـ Brute Force
 const authLimiter = rateLimit({
@@ -82,7 +82,7 @@ app.use("/api/student", studentRoutes);
 app.use("/api/progress", progressRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/coupons", couponRoutes);
-
+app;
 // رووت تجريبي
 app.get("/", (req, res) => {
   res.send("Welcome to the Teaching Platform Server (ES Modules)!");
