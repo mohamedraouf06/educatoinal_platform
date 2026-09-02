@@ -4,13 +4,24 @@
 // دايمًا وقت التشغيل الحقيقي، والكاش هيفضل معطّل بصمت من غير أي error يوضح السبب.
 import "dotenv/config";
 import { Redis } from "@upstash/redis";
+import { LRUCache } from "lru-cache";
 
-// لو UPSTASH_REDIS_REST_URL/TOKEN مش موجودين في .env، الكاش بيتعطل تلقائيًا
-// والتطبيق بيشتغل عادي (بيقرا من المونجو مباشرة في كل مرة) — الكاش هنا تحسين
-// اختياري مش ميزة أساسية زي الدفع أو الفيديو، فمينفعش نرمي error ونكسر السيرفر.
+// ==========================================================
+// L1 — كاش في ذاكرة نفس السيرفر (Node process). أسرع حاجة ممكنة (microseconds،
+// من غير أي اتصال شبكة خالص)، لكن كل Instance له نسخته الخاصة منفصلة عن التانية.
 //
-// ⚠️ Upstash REST API بيتوصل بيه عن طريق HTTP عادي (مش اتصال TCP دائم زي ioredis)،
-// ده بالظبط اللي بيخليه مناسب لسيرفر عادي زي بتاعنا من غير أي إعداد إضافي.
+// TTL قصير جدًا (5 ثواني) عمدًا: إحنا شغّالين Instance واحد بس دلوقتي فمفيش مشكلة،
+// لكن لو حصل Scale لأكتر من Instance بعدين، كل Instance هيمسح L1 بتاعه بس وقت أي
+// تعديل (مش هيعرف يبلّغ الباقي) — الـ TTL القصير ده بيحدد أقصى مدة ممكن أي Instance
+// يفضل فيها شايل نسخة قديمة، بدل ما يفضل شايلها لحد ما الـ 60 ثانية بتاعة L2 تخلص.
+// ==========================================================
+const l1 = new LRUCache({ max: 500, ttl: 5 * 1000 });
+
+// ==========================================================
+// L2 — Upstash Redis (REST API). أبطأ من L1 (فيه رحلة شبكة فعلية)، لكن مشترك بين
+// كل الـ Instances، فهو مصدر الحقيقة المشترك لما L1 يكون فاضي أو منتهي الصلاحية.
+// لو UPSTASH_REDIS_REST_URL/TOKEN مش موجودين، L2 بيتعطل والكاش يفضل L1 بس.
+// ==========================================================
 const UPSTASH_REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL;
 const UPSTASH_REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 
@@ -20,11 +31,19 @@ const redis =
     : null;
 
 export async function cacheGet(key) {
+  // 1) L1 الأول — لو موجود، رجّعه فورًا من غير ما نلمس الشبكة خالص
+  const l1Value = l1.get(key);
+  if (l1Value !== undefined) return l1Value;
+
+  // 2) L2 لو L1 فاضي أو منتهي — ولو لقينا حاجة، نرجّع نملى L1 بيها عشان الطلب الجاي يبقى L1 hit
   if (!redis) return null;
   try {
-    // @upstash/redis بيرجّع القيمة متفكوكة (parsed) تلقائيًا لو كانت JSON صالح
     const value = await redis.get(key);
-    return value ?? null;
+    if (value !== null && value !== undefined) {
+      l1.set(key, value);
+      return value;
+    }
+    return null;
   } catch (err) {
     console.warn("⚠️ Redis get failed, falling back to DB:", err.message);
     return null;
@@ -32,6 +51,9 @@ export async function cacheGet(key) {
 }
 
 export async function cacheSet(key, value, ttlSeconds = 60) {
+  // بنكتب في الاتنين مع بعض: L1 بسقفه القصير الثابت، وL2 بالمدة الحقيقية المطلوبة
+  l1.set(key, value);
+
   if (!redis) return;
   try {
     await redis.set(key, value, { ex: ttlSeconds });
@@ -40,9 +62,15 @@ export async function cacheSet(key, value, ttlSeconds = 60) {
   }
 }
 
-// بيمسح كل الـ keys اللي بتطابق pattern معيّن — مستخدمة وقت أي تعديل/حذف
-// عشان الكاش القديم ميفضلش يرجّع بيانات قديمة بعد التحديث
+// بيمسح كل الـ keys اللي بتطابق pattern معيّن (من L1 وL2 مع بعض) — مستخدمة وقت
+// أي تعديل/حذف عشان الكاش القديم ميفضلش يرجّع بيانات قديمة بعد التحديث
 export async function cacheDelPattern(pattern) {
+  // L1: pattern بسيط بـ "*" بس، بنحوّله لـ RegExp ونمسح أي مفتاح مطابق من ذاكرة السيرفر ده
+  const regex = new RegExp("^" + pattern.split("*").map(escapeRegex).join(".*") + "$");
+  for (const key of l1.keys()) {
+    if (regex.test(key)) l1.delete(key);
+  }
+
   if (!redis) return;
   try {
     let cursor = "0";
@@ -57,6 +85,10 @@ export async function cacheDelPattern(pattern) {
   } catch (err) {
     console.warn("⚠️ Redis invalidation failed (non-fatal):", err.message);
   }
+}
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export default redis;

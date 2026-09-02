@@ -1,3 +1,8 @@
+// ⚠️ لازم يتحمّل هنا بالذات (أول سطر): lessonController.js بيعمل import للملف ده،
+// وكل الـ imports بتتقيّم قبل ما جسم server.js (ومنه dotenv.config() بتاعه) يشتغل —
+// فمن غير السطر ده، المفاتيح تحت كانت هتفضل undefined دايمًا وقت التشغيل الحقيقي،
+// حتى لو .env مظبوط صح 100%. (نفس الباگ اللي اتصلح قبل كده في authController.js)
+import "dotenv/config";
 import { createHash } from "node:crypto";
 
 // المفاتيح دي بتتقرا من .env — لو لسه ما ضفتهاش (زي دلوقتي قبل ما تشتري Bunny)

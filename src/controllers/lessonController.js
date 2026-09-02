@@ -6,6 +6,7 @@ import {
   deleteBunnyVideo,
   withSignedVideoUrl,
 } from "../utils/bunnyStream.js";
+import { cacheGet, cacheSet, cacheDelPattern } from "../utils/redisClient.js";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -60,6 +61,9 @@ export const createLesson = async (req, res) => {
 
     await newLesson.save();
 
+    // درس جديد اتضاف — نسخة المعاينة المحفوظة في الكاش لهذا الكورس بقت قديمة
+    await cacheDelPattern(`lessons:preview:${courseId}`);
+
     res
       .status(201)
       .json({ message: "Lesson created successfully!", lesson: newLesson });
@@ -81,6 +85,22 @@ export const getLessonsByCourse = async (req, res) => {
     const userId = decoded?.userId;
     const userRole = decoded?.role;
 
+    // ⚠️ الكاش هنا مقصور على نسخة "المعاينة المجانية" بس (زائر / مسجّل مش مشترك) —
+    // دي النسخة الوحيدة اللي بتكون *مطابقة لأي حد* بغض النظر عن هويته، فآمن تتشارك.
+    // نسخة الأدمن ونسخة الطالب المشترك فيهم روابط فيديو موقّعة لمحتوى مدفوع خاص بكل
+    // مستخدم — لو اتحطوا في نفس الكاش المشترك، أي زائر تاني ممكن ياخد وصول لمحتوى
+    // مش من حقه (نفس نوع الثغرة اللي اتصلحت قبل كده في studentController.js).
+    // عشان كده الفرعين دول بيتحسبوا live في كل مرة، من غير كاش خالص.
+    const previewCacheKey = `lessons:preview:${courseId}`;
+    const isPrivilegedRequest = userRole === "admin" || !!userId;
+
+    if (!isPrivilegedRequest) {
+      const cached = await cacheGet(previewCacheKey);
+      if (cached) {
+        return res.status(200).json(cached);
+      }
+    }
+
     // 1. الفهرس العام: كل الدروس بعناوينها، وأي درس معاينة مجانية بيتبعت برابط فيديو فعلي وموقّع
     const allLessons = await Lesson.find({ courseId }).sort({ order: 1 }).lean();
     const previewableLessons = allLessons.map((lesson) =>
@@ -88,8 +108,9 @@ export const getLessonsByCourse = async (req, res) => {
         ? withSignedVideoUrl(lesson)
         : { ...lesson, videoUrl: undefined },
     );
+    const previewPayload = { lessons: previewableLessons, isEnrolled: false };
 
-    // 2. أدمن: وصول كامل لكل الدروس والفيديوهات
+    // 2. أدمن: وصول كامل لكل الدروس والفيديوهات — من غير كاش
     if (userRole === "admin") {
       return res.status(200).json({
         lessons: allLessons.map(withSignedVideoUrl),
@@ -99,9 +120,9 @@ export const getLessonsByCourse = async (req, res) => {
 
     // 3. زائر مش مسجل دخول خالص — بيشوف الفهرس + دروس المعاينة المجانية بس
     if (!userId) {
-      return res
-        .status(200)
-        .json({ lessons: previewableLessons, isEnrolled: false });
+      // 60 ثانية كفاية، وأقل بكتير من صلاحية التوكن الموقّع نفسه (ساعة كاملة)
+      await cacheSet(previewCacheKey, previewPayload, 60);
+      return res.status(200).json(previewPayload);
     }
 
     // بنجيب بس enrolledCourses، ده الحقل الوحيد المستخدم هنا
@@ -109,9 +130,7 @@ export const getLessonsByCourse = async (req, res) => {
 
     // لو التوكن بتاع مستخدم اتمسح من الداتابيز، بنعامله زي الزائر مش بنرفض الطلب
     if (!user) {
-      return res
-        .status(200)
-        .json({ lessons: previewableLessons, isEnrolled: false });
+      return res.status(200).json(previewPayload);
     }
 
     // English comment: Verify if the student has access to this course
@@ -119,7 +138,7 @@ export const getLessonsByCourse = async (req, res) => {
       user.enrolledCourses && user.enrolledCourses.includes(courseId);
 
     if (hasAccess) {
-      // If enrolled, send full lessons with videos
+      // If enrolled, send full lessons with videos — من غير كاش، ده محتوى مدفوع خاص
       return res.status(200).json({
         lessons: allLessons.map(withSignedVideoUrl),
         isEnrolled: true,
@@ -127,9 +146,7 @@ export const getLessonsByCourse = async (req, res) => {
     }
 
     // 4. مسجل دخول بس مش مشترك — نفس الفهرس + دروس المعاينة المجانية
-    return res
-      .status(200)
-      .json({ lessons: previewableLessons, isEnrolled: false });
+    return res.status(200).json(previewPayload);
   } catch (err) {
     console.error("CRITICAL SERVER ERROR:", err.message);
     res.status(500).json({ message: "Server error", error: err.message });
@@ -153,6 +170,10 @@ export const deleteLesson = async (req, res) => {
       );
     }
 
+    if (deletedLesson?.courseId) {
+      await cacheDelPattern(`lessons:preview:${deletedLesson.courseId}`);
+    }
+
     res.status(200).json({
       deletedLesson,
       message: "lesson has been deleted",
@@ -172,6 +193,11 @@ export const updateLesson = async (req, res) => {
       new: true,
       runValidators: true,
     });
+
+    if (updatedLesson?.courseId) {
+      await cacheDelPattern(`lessons:preview:${updatedLesson.courseId}`);
+    }
+
     res.status(200).json({
       updatedLesson,
       message: "lesson has been updated",

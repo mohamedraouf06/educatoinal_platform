@@ -1,3 +1,8 @@
+// ⚠️ لازم يتحمّل هنا بالذات (أول سطر): paymentController.js بيعمل import للملف ده،
+// وكل الـ imports بتتقيّم قبل ما جسم server.js (ومنه dotenv.config() بتاعه) يشتغل —
+// فمن غير السطر ده، المفاتيح تحت كانت هتفضل undefined دايمًا وقت التشغيل الحقيقي،
+// حتى لو .env مظبوط صح 100%. (نفس الباگ اللي اتصلح في authController.js وbunnyStream.js)
+import "dotenv/config";
 import { createHmac } from "node:crypto";
 
 // المفاتيح دي بتتقرا من .env — لو لسه ما ضفتهاش، أي محاولة دفع هترجع خطأ واضح
