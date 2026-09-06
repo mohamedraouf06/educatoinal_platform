@@ -5,6 +5,8 @@ import {
   uploadVideoToBunny,
   deleteBunnyVideo,
   withSignedVideoUrl,
+  getBunnyVideoStatus,
+  getBunnyVideoInfo,
 } from "../utils/bunnyStream.js";
 import { cacheGet, cacheSet, cacheDelPattern } from "../utils/redisClient.js";
 
@@ -22,6 +24,32 @@ function getOptionalUser(req) {
   } catch {
     return null;
   }
+}
+
+// لأي درس لسه متسجّل عندنا كـ "processing"، بنسأل Bunny لايف هل خلص ولا لسه —
+// ولو خلص، بنحدّث نسخته في الداتابيز فورًا عشان المرة الجاية نبقى عارفين من غير
+// ما نسأل Bunny تاني. الدروس اللي أصلاً "ready" مش بتتلمس خالص (صفر تكلفة إضافية).
+async function refreshProcessingLessons(lessons) {
+  await Promise.all(
+    lessons.map(async (lesson) => {
+      if (lesson.status === "ready") return;
+      try {
+        const liveStatus = await getBunnyVideoStatus(lesson.videoUrl);
+        if (liveStatus !== lesson.status) {
+          lesson.status = liveStatus;
+          await Lesson.updateOne({ _id: lesson._id }, { status: liveStatus });
+        }
+      } catch (err) {
+        // فشل السؤال عن الحالة (Bunny مش متظبط، أو مشكلة شبكة مؤقتة) — نسيب
+        // الدرس بحالته القديمة المخزّنة، ده أأمن من ما نكسر الـ endpoint كله
+        console.warn(
+          `⚠️ Could not refresh Bunny status for lesson ${lesson._id}:`,
+          err.message,
+        );
+      }
+    }),
+  );
+  return lessons;
 }
 
 // create a new lesson (admin only)
@@ -43,13 +71,16 @@ export const createLesson = async (req, res) => {
       });
     }
 
-    // 3. بننشئ سجل الفيديو في مكتبة Bunny الأول عشان ناخد الـ videoId
+    //  this will create a new video in Bunny Stream and return its videoId
     const videoId = await createBunnyVideo(title);
+    // log the videoId for debugging purposes
+    console.log(`Created new Bunny video with ID: ${videoId}`); //
 
-    // 4. بنرفع محتوى الفيديو الفعلي على نفس الـ videoId ده
+    // 3. Upload the video file to Bunny Stream using the videoId
     await uploadVideoToBunny(videoId, req.file.buffer);
-
-    // 5. بنخزن الـ videoId بس (مش رابط كامل) — الرابط بيتبني وقت الطلب في withSignedVideoUrl
+    // log the upload completion for debugging purposes
+    console.log(`Uploaded video for lesson "${title}" to Bunny Stream.`); //
+    // 4. Create the lesson in MongoDB
     const newLesson = new Lesson({
       title,
       videoUrl: videoId,
@@ -60,8 +91,7 @@ export const createLesson = async (req, res) => {
     });
 
     await newLesson.save();
-
-    // درس جديد اتضاف — نسخة المعاينة المحفوظة في الكاش لهذا الكورس بقت قديمة
+    // 5. Clear the cache for this course's lessons preview, so next request will fetch fresh data
     await cacheDelPattern(`lessons:preview:${courseId}`);
 
     res
@@ -102,21 +132,30 @@ export const getLessonsByCourse = async (req, res) => {
     }
 
     // 1. الفهرس العام: كل الدروس بعناوينها، وأي درس معاينة مجانية بيتبعت برابط فيديو فعلي وموقّع
-    const allLessons = await Lesson.find({ courseId }).sort({ order: 1 }).lean();
-    const previewableLessons = allLessons.map((lesson) =>
-      lesson.isFreePreview
-        ? withSignedVideoUrl(lesson)
-        : { ...lesson, videoUrl: undefined },
-    );
-    const previewPayload = { lessons: previewableLessons, isEnrolled: false };
+    let allLessons = await Lesson.find({ courseId }).sort({ order: 1 }).lean();
 
-    // 2. أدمن: وصول كامل لكل الدروس والفيديوهات — من غير كاش
+    // 2. أدمن: وصول كامل لكل الدروس **بكل حالاتها** (بما فيها لسه "processing")،
+    // مع حالة كل درس ظاهرة، عشان يعرف إيه اللي جاهز وإيه لسه بيتعالج — من غير كاش
     if (userRole === "admin") {
+      allLessons = await refreshProcessingLessons(allLessons);
       return res.status(200).json({
         lessons: allLessons.map(withSignedVideoUrl),
         isEnrolled: true,
       });
     }
+
+    // ⚠️ من هنا وتحت (كل الجمهور غير الأدمن)، أي درس لسه "processing" أو "error"
+    // بيتشال تمامًا من القايمة — طالب دافع فلوس (أو زائر) محدش يشوفله "Processing"
+    // في نص تجربته، الدرس ببساطة مش موجود لحد ما يخلص فعليًا
+    allLessons = await refreshProcessingLessons(allLessons);
+    const readyLessons = allLessons.filter((l) => l.status === "ready");
+
+    const previewableLessons = readyLessons.map((lesson) =>
+      lesson.isFreePreview
+        ? withSignedVideoUrl(lesson)
+        : { ...lesson, videoUrl: undefined },
+    );
+    const previewPayload = { lessons: previewableLessons, isEnrolled: false };
 
     // 3. زائر مش مسجل دخول خالص — بيشوف الفهرس + دروس المعاينة المجانية بس
     if (!userId) {
@@ -138,9 +177,9 @@ export const getLessonsByCourse = async (req, res) => {
       user.enrolledCourses && user.enrolledCourses.includes(courseId);
 
     if (hasAccess) {
-      // If enrolled, send full lessons with videos — من غير كاش، ده محتوى مدفوع خاص
+      // If enrolled, send full READY lessons with videos — من غير كاش، ده محتوى مدفوع خاص
       return res.status(200).json({
-        lessons: allLessons.map(withSignedVideoUrl),
+        lessons: readyLessons.map(withSignedVideoUrl),
         isEnrolled: true,
       });
     }
@@ -206,5 +245,34 @@ export const updateLesson = async (req, res) => {
     return res
       .status(500)
       .json({ message: "Server Error", error: error.message });
+  }
+};
+
+// بيرجّع حالة درس واحد + نسبة تقدّم التحويل الفعلية من Bunny (0-100) — الأدمن بس،
+// مخصّصة عشان الفرونت إند يعمل عليها Polling ويوري شريط تقدّم حقيقي بعد رفع
+// الفيديو مباشرة، لحد ما الحالة تبقى "ready"
+export const getLessonProcessingStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const lesson = await Lesson.findById(id).select("status videoUrl");
+
+    if (!lesson) {
+      return res.status(404).json({ message: "Lesson not found" });
+    }
+
+    // الدرس أصلاً جاهز — مفيش داعي نسأل Bunny تاني، صفر تكلفة إضافية
+    if (lesson.status === "ready") {
+      return res.status(200).json({ status: "ready", encodeProgress: 100 });
+    }
+
+    const info = await getBunnyVideoInfo(lesson.videoUrl);
+    if (info.status !== lesson.status) {
+      lesson.status = info.status;
+      await lesson.save();
+    }
+
+    return res.status(200).json(info);
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 };

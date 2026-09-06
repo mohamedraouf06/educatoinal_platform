@@ -67,6 +67,14 @@ const lessonSchema = new mongoose.Schema({
   duration: { type: Number, default: 0 }, // بالدقايق، للعرض بس
   isFreePreview: { type: Boolean, default: false }, // لو true، أي زائر (حتى مش مشترك) يقدر يشغّله
   order: { type: Number, default: 0 }, // ترتيب الدرس جوه الكورس
+  // حالة تجهيز الفيديو على Bunny — الدرس بيتعمله save بـ "processing" فورًا وقت الرفع
+  // (قبل ما الـ Encoding يخلص خالص)، وبيتحدّث لـ "ready" أول ما نتأكد من Bunny إنه
+  // خلص. الطلاب مبيشوفوش أي درس لسه "processing"، الأدمن بس اللي يشوفه بكل حالاته.
+  status: {
+    type: String,
+    enum: ["processing", "ready", "error"],
+    default: "processing",
+  },
 });
 
 // Index بيسرّع أي استعلام بيفلتر الدروس حسب الكورس (getLessonsByCourse, populate("lessons"))

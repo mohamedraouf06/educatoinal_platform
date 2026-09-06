@@ -6,6 +6,7 @@ import {
   getLessonsByCourse,
   updateLesson,
   deleteLesson,
+  getLessonProcessingStatus,
 } from "../controllers/lessonController.js";
 import upload from "../middleware/uploadMiddleware.js";
 
@@ -27,5 +28,8 @@ router.get("/course/:courseId", getLessonsByCourse);
 // 🔒 تعديل/حذف درس (أدمن بس) — الكنترولرز دي كانت موجودة من غير أي route ليها خالص
 router.put("/:id", authMiddleware, adminMiddleware, updateLesson);
 router.delete("/:id", authMiddleware, adminMiddleware, deleteLesson);
+
+// 🔒 حالة تقدّم التحويل (Encoding) لدرس معيّن — أدمن بس، للـ Polling بعد الرفع
+router.get("/:id/status", authMiddleware, adminMiddleware, getLessonProcessingStatus);
 
 export default router;

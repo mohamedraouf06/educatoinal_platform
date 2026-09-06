@@ -92,6 +92,40 @@ export async function deleteBunnyVideo(videoId) {
   }
 }
 
+// 3.5) بيسأل Bunny عن حالة الفيديو الحالية (لسه بيتعالج / جاهز / فشل) + نسبة
+// تقدّم التحويل الفعلية (encodeProgress، رقم من 0 لـ 100). أكواد الحالة الرسمية
+// (VideoModel.status): 0=Created 1=Uploaded 2=Processing 3=Transcoding
+// 4=Finished(جاهز للتشغيل) 5=Error 6=UploadFailed 7/8=JIT stages
+// https://docs.bunny.net/reference/video_getvideo
+export async function getBunnyVideoInfo(videoId) {
+  assertBunnyConfigured();
+
+  const res = await fetch(`${BUNNY_API_BASE}/${BUNNY_STREAM_LIBRARY_ID}/videos/${videoId}`, {
+    method: "GET",
+    headers: { AccessKey: BUNNY_STREAM_API_KEY, accept: "application/json" },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Bunny getVideo failed (${res.status})`);
+  }
+
+  const data = await res.json();
+  let status = "processing";
+  if (data.status === 4) status = "ready";
+  else if (data.status === 5 || data.status === 6) status = "error";
+
+  return {
+    status,
+    encodeProgress: typeof data.encodeProgress === "number" ? data.encodeProgress : 0,
+  };
+}
+
+// نسخة مبسّطة بترجع الحالة بس (نص) — مستخدمة في الأماكن اللي مش محتاجة النسبة
+export async function getBunnyVideoStatus(videoId) {
+  const { status } = await getBunnyVideoInfo(videoId);
+  return status;
+}
+
 // 4) بيبني رابط تشغيل (iframe embed) موقّع بتوكن ومحدود الصلاحية للفيديو
 // معتمد على النظام الرسمي لـ Bunny Stream "Embed View Token Authentication":
 // https://docs.bunny.net/docs/stream-embed-view-token-authentication

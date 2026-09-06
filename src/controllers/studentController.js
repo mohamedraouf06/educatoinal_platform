@@ -1,6 +1,6 @@
-import { User, Course } from "../models/models.js";
+import { User, Course, Lesson } from "../models/models.js";
 import Progress from "../models/Progress.js";
-import { withSignedVideoUrl } from "../utils/bunnyStream.js";
+import { withSignedVideoUrl, getBunnyVideoStatus } from "../utils/bunnyStream.js";
 
 export const getMyCourses = async (req, res) => {
   try {
@@ -97,12 +97,34 @@ export const getCourseDetailsForStudent = async (req, res) => {
         .json({ success: false, message: "Course not found" });
     }
 
+    // الأدمن بيشوف كل الدروس بكل حالاتها (حتى لسه "processing")، الطالب المشترك
+    // بس اللي بيشوف الدروس "ready" فعلاً — عشان محدش يشوف درس "بيتعالج لسه" في
+    // نص تجربته وهو دافع فلوس بالفعل
+    let lessons = course.lessons || [];
+    if (user.role !== "admin") {
+      await Promise.all(
+        lessons.map(async (lesson) => {
+          if (lesson.status === "ready") return;
+          try {
+            const liveStatus = await getBunnyVideoStatus(lesson.videoUrl);
+            if (liveStatus !== lesson.status) {
+              lesson.status = liveStatus;
+              await Lesson.updateOne({ _id: lesson._id }, { status: liveStatus });
+            }
+          } catch (err) {
+            console.warn(`⚠️ Could not refresh Bunny status for lesson ${lesson._id}:`, err.message);
+          }
+        }),
+      );
+      lessons = lessons.filter((l) => l.status === "ready");
+    }
+
     // ⚠️ ده كان أكبر ثغرة فعلية: الدروس هنا كانت بترجع videoUrl الخام من غير
     // توقيع أو حماية — أي طالب مشترك كان يقدر ياخد الرابط الدائم ويشاركه.
     // لازم كل مكان بيرجّع دروس لمستخدم يعدّي عليها بالدالة دي، مش يرجّعها خام.
     const course_ = {
       ...course,
-      lessons: (course.lessons || []).map(withSignedVideoUrl),
+      lessons: lessons.map(withSignedVideoUrl),
     };
 
     res.status(200).json({
